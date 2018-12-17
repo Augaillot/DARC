@@ -18,21 +18,34 @@ GENERAL_FRAME = pd.DataFrame(data={COL['id_user']:[], 'id_user_s':[]})
 
 def get_csv(file_path):
     # Read the ground truth file
-    csv = pd.read_csv(file_path, sep=',', engine='c',\
-                               na_filter=False, low_memory=False)
+    csv = pd.read_csv(file_path, sep=',', engine='c', na_filter=False, low_memory=False)
     csv.columns = COL.values()
     return csv
+
+def get_id_users(init=False):
+    global id_users_t
+    global id_users_s
+    if init:
+        id_users_t = csv_t.drop_duplicates(subset=[COL['id_user']])[COL['id_user']].astype(str).values
+    id_users_s = csv_s.drop_duplicates(subset=[COL['id_user']])[COL['id_user']].astype(str).values
 
 def saveIDs(IDs):
     global GENERAL_FRAME
     GENERAL_FRAME = GENERAL_FRAME.append(pd.DataFrame(data={COL['id_user']: IDs[COL['id_user']].astype(str), 'id_user_s': IDs['id_user_s'].astype(str)}), ignore_index=True)
-    GENERAL_FRAME.drop_duplicates(subset=[COL['id_user']])
+    GENERAL_FRAME = GENERAL_FRAME.drop_duplicates(subset=[COL['id_user']])
+    print('Identified {} users'.format(GENERAL_FRAME.shape[0]))
+    clearCSV()
+
+def saveID(IDs):
+    global GENERAL_FRAME
+    GENERAL_FRAME = GENERAL_FRAME.append(pd.DataFrame(data={COL['id_user']: [IDs[1]], 'id_user_s': [IDs[0]]}), ignore_index=True)
+    GENERAL_FRAME = GENERAL_FRAME.drop_duplicates(subset=[COL['id_user']])
+    print('Identified {} users'.format(GENERAL_FRAME.shape[0]))
     clearCSV()
 
 def clearCSV():
     global csv_t
     global csv_s
-    csv_t = csv_t[~csv_t[COL['id_user']].isin(GENERAL_FRAME[COL['id_user']].values)]
     csv_s = csv_s[~csv_s[COL['id_user']].isin(GENERAL_FRAME['id_user_s'].values)]
 
 def linker(csv, items, column_a, column_b, reindex=True):
@@ -62,93 +75,56 @@ def unique_items_attack():
     linked[COL['id_user']] = linked[COL['id_user']].astype(str)
     saveIDs(linked)
 
-def unify_transactions(csv):
-    unique_transac = csv.drop_duplicates(subset=[COL['id_user'], COL['date'], COL['hours']])
-    unique_transac = unique_transac.drop([COL['id_item'], COL['price'], COL['qty']], axis=1)
-    table = unique_transac[COL['id_user']].value_counts()
-    nda = table.reset_index().values.transpose()
-    table = pd.DataFrame(data={COL['id_user']:nda[0], 'transac_count':nda[1]})
-    table = table.where(table != 'DEL')
-    table = table.dropna().reset_index(drop=True)
-    return table
+def unique_combination():
+    id_users_en_cours = id_users_s
+    for id_user in id_users_en_cours:
+        user_table = csv_s.where(csv_s[COL['id_user']].astype(str) == id_user)
+        user_table = user_table.dropna()
 
-def unique_transactions_attack():
-    tb_t = unify_transactions(csv_t)
-    tb_s = unify_transactions(csv_s)
+        for rg in range(3, 10):
+            if user_table.empty:
+                break
+            arr = np.array([])
+            for i in range(rg):
+                id_item = user_table.sample(n=1, axis=0)[COL['id_item']].astype(str).values
+                arr = np.append(arr, id_item)
+                arr = np.unique(arr)
+            
+            csv_filtered_s = csv_s[csv_s[COL['id_item']].isin(arr)].drop_duplicates(subset=[COL['id_user'], COL['id_item']])
+            
+            counter_s = csv_filtered_s[COL['id_user']].value_counts()
+            counter_s = counter_s.where(counter_s == arr.shape[0]).dropna()
 
-    ## Join DataFrames
-    tb = tb_t.assign(transac_s=tb_s['transac_count'], id_user_s=tb_s[COL['id_user']])
+            if counter_s.shape[0] == 1:
+                csv_filtered_t = csv_t[csv_t[COL['id_item']].isin(arr)].drop_duplicates(subset=[COL['id_user'], COL['id_item']])
 
-    ## Delete rows with condition
-    tb = tb.where(tb['transac_s'] > 15) # or ad[ad > 1] = np.nan
-    tb = tb.dropna()
-    tb[COL['id_user']] = tb[COL['id_user']].astype(int)
-    saveIDs(tb.head(3))
+                counter_t = csv_filtered_t[COL['id_user']].value_counts()
+                counter_t = counter_t.where(counter_t == arr.shape[0]).dropna()
 
-def count_items_per_transaction():
-    tb_t = count_items(csv_t, [csv_t[COL['date']], csv_t[COL['hours']]])
-    tb_s = count_items(csv_s, [csv_s[COL['date']], csv_s[COL['hours']]])
-
-def count_items(csv, groupby):
-    csv['total'] = csv[COL['qty']].groupby(groupby).transform('sum')
-    table = csv.drop_duplicates(subset=COL['id_user'])
-    table = table.drop([COL['date'], COL['hours'], COL['id_item'], COL['price'], COL['qty']], axis=1)
-    table = table.sort_values(by='total', ascending=False)
-    table = table.reset_index(drop=True)
-    return table
-
-def count_items_per_user():
-    tb_t = count_items(csv_t, [csv_t[COL['id_user']]])
-    tb_s = count_items(csv_s, [csv_s[COL['id_user']]])
-    tb = tb_t.assign(total_s=tb_s['total'], id_user_s=tb_s[COL['id_user']])
-    saveIDs(tb.head(3))
-    saveIDs(tb.tail(3))
-
-def double_item_attack():
-    tb_t = items_counter(csv_t)
-    tb_s = items_counter(csv_s)
-    tb = tb_t.assign(tb_s = tb_s)
-    tb = tb.where(tb == 2)
-    tb = tb.dropna()
-    nda_tb = tb.reset_index().values.transpose()
-    linked_t = linker(csv_t, nda_tb, COL['id_user'], COL['id_item'], False).sort_values(by=[COL['id_item']]).reset_index(drop=True)
-    linked_s = linker(csv_s, nda_tb, COL['id_user'], COL['id_item'], False).sort_values(by=[COL['id_item']]).reset_index(drop=True)
-    linked = linked_t.assign(id_item_s=linked_s[COL['id_item']], id_user_s = linked_s[COL['id_user']])
-    print(linked.shape)
-    linked = identify_same(linked)
-    print(linked.shape)
-
-def identify_same(table):
-    table_bool = table.duplicated(subset=[COL['id_user'], COL['id_item']])
-    tb = table.where(table_bool == True).dropna()
-    tb[COL['id_user']] = tb[COL['id_user']].astype(int)
-    table = table[~table[COL['id_user']].isin(tb[COL['id_user']].values)]
-    saveIDs(tb)
-    return table
-
-def pick_random_user():
-    return True
+                if counter_t.shape[0] == 1:
+                    table = counter_t.astype(int).reset_index().values.transpose()
+                    saveID([id_user, table[0][0]])
+                    break
 
 def main():
     global csv_t
     global csv_s
     csv_t = get_csv(FILE_TRUTH)
-    print("CSV Truth Shape: {}".format(csv_t.shape))
-    #csv_s = get_csv(FILE_PIET_SI)
-    csv_s = get_csv(FILE_PAPY_IM)
+    csv_s = get_csv(FILE_PIET_SI)
+    csv_s = csv_s.where(csv_s[COL['id_user']].astype(str) != 'DEL').dropna()
 
-    #print(csv_s.sample(n=1, axis=0)[COL[1]].values[0])
-    count_items_per_user() # Gives 6 users
-    unique_transactions_attack() # Gives 3 users
-    unique_items_attack() # Can give up to approx. 140 users
-    double_item_attack()
+    unique_items_attack() # Get users who bought unique items
 
-    print("GENERAL_FRAME Shape: {}".format(GENERAL_FRAME.shape))
+    get_id_users(init=True)
+    unique_combination()
+    if GENERAL_FRAME.shape[0] < id_users_s.shape[0]:
+        unique_combination()
+    if GENERAL_FRAME.shape[0] < id_users_s.shape[0]:
+        unique_combination()
+
+    print("GENERAL_FRAME Shape: {}".format(GENERAL_FRAME.shape[0]))
     print(GENERAL_FRAME)
-    print("CSV Truth New Shape: {}".format(csv_t.shape))
-    
-    #count_items_per_transaction()
-    
+    print("Unique IDs: {}".format(GENERAL_FRAME.drop_duplicates(subset=[COL['id_user']]).shape[0]))
 
 if __name__ == "__main__":
     main()
