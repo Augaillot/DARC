@@ -32,7 +32,28 @@ def saveIDs(IDs):
     global GENERAL_FRAME
     if month == 1:
         mt = 'Jan'
-    elif month ==2:
+    elif month == 2:
+        mt = 'Feb'
+    elif month == 3:
+        mt = 'Mar'
+    elif month == 4:
+        mt = 'Apr'
+    elif month == 5:
+        mt = 'May'
+    elif month == 6:
+        mt = 'Jun'
+    elif month == 7:
+        mt = 'Jul'
+    elif month == 8:
+        mt = 'Aug'
+    elif month == 9:
+        mt = 'Sep'
+    elif month == 10:
+        mt = 'Oct'
+    elif month == 11:
+        mt = 'Nov'
+    elif month == 12:
+        mt = 'Dec'
         
     GENERAL_FRAME = pd.concat([
         GENERAL_FRAME,
