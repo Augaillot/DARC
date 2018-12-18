@@ -129,7 +129,7 @@ def main():
             unique_combination()
 
         print("GENERAL_FRAME Shape: {}".format(GENERAL_FRAME.shape[0]))
-        print("Unique IDs: {}".format(GENERAL_FRAME.drop_duplicates(subset=[COL['id_user_s']]).shape[0]))
+        print("Unique IDs: {}".format(GENERAL_FRAME.drop_duplicates(subset=['id_user_s']).shape[0]))
         GENERAL_FRAME.to_csv('out/'+file, sep=',', index=0)
         print('Saved file out/{}'.format(file))
 
