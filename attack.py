@@ -1,20 +1,19 @@
 import pandas as pd
 import numpy as np
+import os
 
 pd.set_option('display.max_rows', 500)
 
 FILE_TRUTH = "./data/ground_truth.csv"
-FILE_SUB = "./data/example_files/submission.csv"
-
-FILE_PIET = "./data/submission_piet_months.csv"
-FILE_PIET_IM = "./data/submission_piet_id_modified.csv"
-FILE_PIET_SI = "./data/submission_piet_same_id.csv"
-
-FILE_PAPY_IM = "./data/submission_papy_id_modified.csv"
+SUB_DIR = "./data/S_files/"
 
 COL = {'id_user':1, 'date':2, 'hours':3, 'id_item':4, 'price':5, 'qty':6}
 
 GENERAL_FRAME = pd.DataFrame(data={COL['id_user']:[], 'id_user_s':[]})
+
+def init_general_frame():
+    global GENERAL_FRAME
+    GENERAL_FRAME = pd.DataFrame(data={COL['id_user']:[], 'id_user_s':[]})
 
 def get_csv(file_path):
     # Read the ground truth file
@@ -33,18 +32,18 @@ def saveIDs(IDs):
     global GENERAL_FRAME
     GENERAL_FRAME = GENERAL_FRAME.append(pd.DataFrame(data={COL['id_user']: IDs[COL['id_user']].astype(str), 'id_user_s': IDs['id_user_s'].astype(str)}), ignore_index=True)
     GENERAL_FRAME = GENERAL_FRAME.drop_duplicates(subset=[COL['id_user']])
-    print('Identified {} users'.format(GENERAL_FRAME.shape[0]))
+    #print('Identified {} users'.format(GENERAL_FRAME.shape[0]))
     clearCSV()
 
 def saveID(IDs):
     global GENERAL_FRAME
     GENERAL_FRAME = GENERAL_FRAME.append(pd.DataFrame(data={COL['id_user']: [IDs[1]], 'id_user_s': [IDs[0]]}), ignore_index=True)
     GENERAL_FRAME = GENERAL_FRAME.drop_duplicates(subset=[COL['id_user']])
-    print('Identified {} users'.format(GENERAL_FRAME.shape[0]))
+    #print('Identified {} users'.format(GENERAL_FRAME.shape[0]))
     clearCSV()
+    get_id_users()
 
 def clearCSV():
-    global csv_t
     global csv_s
     csv_s = csv_s[~csv_s[COL['id_user']].isin(GENERAL_FRAME['id_user_s'].values)]
 
@@ -110,21 +109,29 @@ def main():
     global csv_t
     global csv_s
     csv_t = get_csv(FILE_TRUTH)
-    csv_s = get_csv(FILE_PIET_SI)
-    csv_s = csv_s.where(csv_s[COL['id_user']].astype(str) != 'DEL').dropna()
 
-    unique_items_attack() # Get users who bought unique items
+    this = os.path.abspath(os.path.join(os.path.curdir, 'out/'))
+    if not os.path.exists(this): os.makedirs(this)
+    
+    for file in os.listdir(SUB_DIR):
+        init_general_frame()
+        csv_s = get_csv(SUB_DIR + file)
+        print('Opened file {}'.format(file))
+        csv_s = csv_s.where(csv_s[COL['id_user']].astype(str) != 'DEL').dropna()
 
-    get_id_users(init=True)
-    unique_combination()
-    if GENERAL_FRAME.shape[0] < id_users_s.shape[0]:
+        unique_items_attack() # Get users who bought unique items
+
+        get_id_users(init=True)
         unique_combination()
-    if GENERAL_FRAME.shape[0] < id_users_s.shape[0]:
-        unique_combination()
+        if GENERAL_FRAME.shape[0] < id_users_s.shape[0]:
+            unique_combination()
+        if GENERAL_FRAME.shape[0] < id_users_s.shape[0]:
+            unique_combination()
 
-    print("GENERAL_FRAME Shape: {}".format(GENERAL_FRAME.shape[0]))
-    print(GENERAL_FRAME)
-    print("Unique IDs: {}".format(GENERAL_FRAME.drop_duplicates(subset=[COL['id_user']]).shape[0]))
+        print("GENERAL_FRAME Shape: {}".format(GENERAL_FRAME.shape[0]))
+        print("Unique IDs: {}".format(GENERAL_FRAME.drop_duplicates(subset=[COL['id_user']]).shape[0]))
+        GENERAL_FRAME.to_csv('out/'+file, sep=',', index=0)
+        print('Saved file out/{}'.format(file))
 
 if __name__ == "__main__":
     main()
