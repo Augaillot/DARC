@@ -68,11 +68,16 @@ def unique_combination():
                 counter_t = csv_filtered_t[COL['id_user']].value_counts()
                 counter_t = counter_t.where(counter_t == arr.shape[0]).dropna()
 
-                if counter_t.shape[0] == 1:
+                if counter_t.shape[0] == 1 :
                     table = counter_t.astype(int).reset_index().values.transpose()
+                    mask = np.isin(IDs[0], table[0][0].astype(str))
+                    already = 0
+                    if mask.shape[0] > 0:
+                        already = IDs[0][mask].shape[0]
                     #print('Identified user {}'.format([id_user, table[0][0]]))
-                    IDs = np.append(IDs, [[table[0][0].astype(str)], [id_user]], axis=1)
-                    break
+                    if already == 0:
+                        IDs = np.append(IDs, [[table[0][0].astype(str)], [id_user]], axis=1)
+                        break
     saveID(IDs)
 
 def main():
